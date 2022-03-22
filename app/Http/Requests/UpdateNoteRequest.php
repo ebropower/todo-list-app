@@ -26,7 +26,9 @@ class UpdateNoteRequest extends FormRequest
     {
         return [
             'details' => 'nullable|string',
-            'completed' => ['sometimes', 'nullable', Rule::in([0, 1])]
+            'completed' => ['sometimes', 'nullable', Rule::in([0, 1])],
+            'categories' => ['required','array'],
+            'categories.*' => ['exists:categories,id']
         ];
     }
 }

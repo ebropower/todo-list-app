@@ -11,8 +11,6 @@ use App\Http\Requests\CreateNoteRequest;
 use App\Http\Requests\UpdateNoteRequest;
 use App\Http\Resources\NoteResource;
 use App\Models\Note;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class NotesController extends Controller
 {
@@ -23,9 +21,7 @@ class NotesController extends Controller
 
     public function store(CreateNoteRequest $request)
     {
-        $data = $request->validated();
-
-        $note = CreateNoteAction::run(auth()->user(), $data);
+        $note = CreateNoteAction::run(auth()->user(), $request->validated());
 
         return (new NoteResource($note))
             ->response()
@@ -34,6 +30,8 @@ class NotesController extends Controller
 
     public function show(Note $note)
     {
+        $note->load('categories');
+
         return new NoteResource(GetNoteAction::run($note));
     }
 
@@ -41,9 +39,9 @@ class NotesController extends Controller
     {
         $this->authorize('update', $note);
 
-        $data = $request->validated();
+        $note->load('categories');
 
-        UpdateNoteAction::run($note, $data);
+        UpdateNoteAction::run($note, $request->validated());
 
         return new NoteResource($note->refresh());
     }
@@ -52,7 +50,7 @@ class NotesController extends Controller
     {
         $this->authorize('delete', $note);
 
-        DeleteNoteAction::run($note);
+        DeleteNoteAction::run($note, auth()->user());
 
         return response()->json([
             'message' => 'Successfully deleted the note'

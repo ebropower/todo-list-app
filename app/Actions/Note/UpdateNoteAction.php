@@ -15,5 +15,7 @@ class UpdateNoteAction
             'details' => $data['details'],
             'completed_at' => $data['completed'] === 1 ? now() : null
         ]);
+
+        $note->categories()->sync($data['categories']);
     }
 }

@@ -12,10 +12,14 @@ class CreateUserAction
 
     public function handle($data)
     {
-        return User::create([
+        $user = User::create([
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
         ]);
+
+        $user->assignRole('owner');
+
+        return $user;
     }
 }

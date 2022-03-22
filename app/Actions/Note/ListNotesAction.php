@@ -12,6 +12,6 @@ class ListNotesAction
     public function handle($user)
     {
         // for consistency- can add other things later if logic changes
-        return $user->notes;
+        return $user->notes()->cursorPaginate();
     }
 }

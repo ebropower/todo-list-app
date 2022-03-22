@@ -2,11 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Category;
 use App\Models\Note;
 use App\Models\User;
+use App\Notifications\AdminDeletedNoteNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\WithFaker;
-use Laravel\Sanctum\PersonalAccessToken;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -64,20 +65,22 @@ class NotesTest extends TestCase
     /** @test */
     public function test_it_can_create_a_note_as_authenticated_user()
     {
+        Category::factory()->count(3)->create();
         $user = User::factory()->create();
 
         Sanctum::actingAs($user, ['*']);
 
         $payload = [
             'details' => 'Hello World',
-            'completed' => 0
+            'completed' => 0,
+            'categories' => [1,2,3]
         ];
 
         $response = $this->postJson('/api/v1/notes', $payload)
             ->assertSee([
                 'user_id' => $user->id,
                 'details' => $payload['details'],
-                $user->name
+                'owner' => $user->name
             ]);
 
         $this->assertDatabaseHas('notes', [
@@ -134,6 +137,7 @@ class NotesTest extends TestCase
     /** @test */
     public function test_it_can_mark_note_as_complete_as_authenticated_user()
     {
+        Category::factory()->count(3)->create();
         $user = User::factory()
             ->has(Note::factory()->state([
                 'completed_at' => null
@@ -146,7 +150,8 @@ class NotesTest extends TestCase
 
         $payload = [
             'details' => $note->details,
-            'completed' => 1
+            'completed' => 1,
+            'categories' => [1,2,3]
         ];
 
         $response = $this->putJson('/api/v1/notes/' . $note->id, $payload);
@@ -159,6 +164,7 @@ class NotesTest extends TestCase
     /** @test */
     public function test_it_can_mark_note_as_incomplete_as_authenticated_user()
     {
+        Category::factory()->count(3)->create();
         $user = User::factory()
             ->has(Note::factory()->state([
                 'completed_at' => now()
@@ -171,7 +177,8 @@ class NotesTest extends TestCase
 
         $payload = [
             'details' => $note->details,
-            'completed' => 0
+            'completed' => 0,
+            'categories' => [1,2,3]
         ];
 
         $response = $this->putJson('/api/v1/notes/' . $note->id, $payload);
@@ -201,7 +208,8 @@ class NotesTest extends TestCase
 
         $response = $this->putJson('/api/v1/notes/' . $note->id, $payload)
             ->assertInvalid([
-                'completed'
+                'completed',
+                'categories'
             ]);
 
         $this->assertNull($note->refresh()->completed_at);
@@ -212,6 +220,7 @@ class NotesTest extends TestCase
     /** @test */
     public function test_it_cannot_mark_note_as_complete_for_other_user()
     {
+        Category::factory()->count(3)->create();
         $userWithNote = User::factory()
             ->has(Note::factory()->state([
                 'completed_at' => null
@@ -226,7 +235,8 @@ class NotesTest extends TestCase
 
         $payload = [
             'details' => $note->details,
-            'completed' => 1
+            'completed' => 1,
+            'categories' => [1,2,3]
         ];
 
         $response = $this->putJson('/api/v1/notes/' . $note->id, $payload)
@@ -263,7 +273,7 @@ class NotesTest extends TestCase
     }
 
     /** @test */
-    public function test_it_cannot_delete_note_for_other_user()
+    public function test_it_cannot_delete_note_for_other_owner_user()
     {
         $userWithNote = User::factory()
             ->has(Note::factory())
@@ -284,5 +294,35 @@ class NotesTest extends TestCase
         ]);
 
         $response->assertStatus(403);
+    }
+
+    /** @test */
+    public function test_it_can_delete_note_for_others_as_admin()
+    {
+        Notification::fake();
+
+        $userWithNote = User::factory()
+            ->has(Note::factory())
+            ->create();
+
+        $adminUser = User::where([
+            'email' => 'admin@example.com'
+        ])->first();
+
+        Sanctum::actingAs($adminUser, ['*']);
+
+        $note = $userWithNote->notes->first();
+
+        $response = $this->deleteJson('/api/v1/notes/' . $note->id);
+
+        $this->assertDatabaseMissing('notes', [
+            'id' => $note->id,
+            'user_id' => $userWithNote->id,
+            'details' => $note->details
+        ]);
+
+        Notification::assertSentTo($userWithNote, AdminDeletedNoteNotification::class);
+
+        $response->assertStatus(200);
     }
 }

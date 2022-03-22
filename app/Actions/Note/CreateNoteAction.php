@@ -12,10 +12,14 @@ class CreateNoteAction
 
     public function handle($user, $data)
     {
-       return Note::create([
-            'user_id' => $user->id,
-            'details' => $data['details'],
-            'completed_at' => $data['completed'] === 1 ? now() : null
+       $note = Note::create([
+           'user_id' => $user->id,
+           'details' => $data['details'],
+           'completed_at' => $data['completed'] === 1 ? now() : null,
         ]);
+
+       $note->categories()->attach($data['categories']);
+
+       return $note;
     }
 }
